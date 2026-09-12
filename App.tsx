@@ -25,13 +25,15 @@ import {
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 
 // -----------------------------------------------------------------------
 // Same brand palette as the web version - Racing Orange (real papaya
 // orange/black livery colors, deliberately not named after any car brand
 // to avoid trademark issues).
 // -----------------------------------------------------------------------
-const ACCENT = "#FF8000";
+const ACCENT = "#FF8A00";
+const ACCENT2 = "#FF3D00";
 const ACCENT_DARK = "#1A1A1A";
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const MAX_HISTORY_TURNS = 12;
@@ -221,13 +223,30 @@ async function fetchWeather(lat: number, lon: number): Promise<string> {
   }
 }
 
+async function fetchExchangeRates(): Promise<string> {
+  // Frankfurter: genuinely free, no API key, ECB-sourced real rates - so
+  // "what's the exchange rate" gets a real current number instead of a
+  // guess from stale training data.
+  try {
+    const resp = await fetch("https://api.frankfurter.app/latest?from=USD&to=ZAR,EUR,GBP");
+    if (!resp.ok) return "";
+    const data = await resp.json();
+    const rates = data?.rates;
+    if (!rates) return "";
+    return `1 USD = R${rates.ZAR?.toFixed(2)} (rand), €${rates.EUR?.toFixed(2)}, £${rates.GBP?.toFixed(2)}`;
+  } catch {
+    return "";
+  }
+}
+
 async function askGemini(
   apiKey: string,
   history: ChatTurn[],
   userText: string,
   locationText: string,
   weatherText: string,
-  speedKmh: number | null
+  speedKmh: number | null,
+  exchangeRateText: string
 ): Promise<string> {
   const now = new Date();
   const hour = now.getHours();
@@ -247,6 +266,7 @@ async function askGemini(
         : `the car is currently moving at about ${speedKmh} km/h`
     );
   }
+  if (exchangeRateText) contextParts.push(`the current real exchange rate is ${exchangeRateText}`);
   const contextPrefix = contextParts.length ? `[Live trip context: ${contextParts.join("; ")}.]\n` : "";
   const contents = history.slice(-MAX_HISTORY_TURNS).map((t) => ({
     role: t.role === "assistant" ? "model" : "user",
@@ -383,6 +403,13 @@ function AppInner() {
   const [locationText, setLocationText] = useState("");
   const [weatherText, setWeatherText] = useState("");
   const [speedKmh, setSpeedKmh] = useState<number | null>(null);
+  const [exchangeRateText, setExchangeRateText] = useState("");
+
+  // Fetched once per session - real exchange rates don't need to update
+  // every few seconds like location does.
+  useEffect(() => {
+    fetchExchangeRates().then(setExchangeRateText);
+  }, []);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState("Locating...");
   const scrollRef = useRef<ScrollView>(null);
@@ -514,7 +541,7 @@ function AppInner() {
     } else if (!(await checkAndIncrementDailyQuota())) {
       reply = "We've chatted so much today we hit the daily limit - let's pick this up tomorrow.";
     } else {
-      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText, speedKmh);
+      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText, speedKmh, exchangeRateText);
     }
 
     setHistory((h) => [...h, { role: "assistant", content: reply }]);
@@ -562,18 +589,31 @@ function AppInner() {
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <SafeAreaView style={styles.header} edges={["top"]}>
-        <StatusBar style="light" />
-        <View style={styles.headerTitleRow}>
-          <Image source={require("./assets/android-icon-foreground.png")} style={styles.headerLogo} />
-          <Text style={styles.headerTitle}>AI DRIVER APP</Text>
-        </View>
-        <Text style={styles.headerSubtitle}>{locationStatus}</Text>
-        <View style={styles.handsFreeRow}>
-          <Text style={styles.handsFreeLabel}>Hands-free</Text>
-          <Switch value={handsFree} onValueChange={setHandsFree} trackColor={{ true: ACCENT }} />
-        </View>
-      </SafeAreaView>
+      <LinearGradient colors={[ACCENT, ACCENT2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <SafeAreaView edges={["top"]}>
+          <StatusBar style="light" />
+          <View style={styles.header}>
+            <View style={styles.headerTopRow}>
+              <View style={styles.headerTitleRow}>
+                <Image source={require("./assets/android-icon-foreground.png")} style={styles.headerLogo} />
+                <Text style={styles.headerTitle}>AI DRIVER APP</Text>
+              </View>
+              <View style={styles.handsFreeRow}>
+                <Text style={styles.handsFreeLabel}>Hands-free</Text>
+                <Switch value={handsFree} onValueChange={setHandsFree} trackColor={{ true: "#FFFFFF66", false: "#00000033" }} thumbColor="#fff" />
+              </View>
+            </View>
+            <View style={styles.statusRow}>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>{locationStatus}</Text>
+              {weatherText ? (
+                <View style={styles.weatherPill}>
+                  <Text style={styles.weatherPillText}>{weatherText}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
       <ScrollView ref={scrollRef} style={styles.chatArea} contentContainerStyle={{ padding: 16 }}>
         {history.length === 0 && (
@@ -640,13 +680,22 @@ const styles = StyleSheet.create({
   },
   setupButton: { backgroundColor: ACCENT_DARK, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
   setupButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  header: { backgroundColor: ACCENT, padding: 16 },
+  header: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 16 },
+  headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitleRow: { flexDirection: "row", alignItems: "center" },
-  headerLogo: { width: 32, height: 32, marginRight: 10, borderRadius: 6 },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
-  headerSubtitle: { fontSize: 12, color: "#fff", marginTop: 4, opacity: 0.9 },
-  handsFreeRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-  handsFreeLabel: { color: "#fff", marginRight: 8, fontSize: 13, fontWeight: "600" },
+  headerLogo: { width: 30, height: 30, marginRight: 10, borderRadius: 8 },
+  headerTitle: { fontSize: 19, fontWeight: "800", color: "#fff", letterSpacing: 0.3 },
+  statusRow: { flexDirection: "row", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 8 },
+  headerSubtitle: { fontSize: 12.5, color: "#fff", opacity: 0.95, flexShrink: 1 },
+  weatherPill: {
+    backgroundColor: "rgba(0,0,0,0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  weatherPillText: { color: "#fff", fontSize: 11.5, fontWeight: "600" },
+  handsFreeRow: { flexDirection: "row", alignItems: "center" },
+  handsFreeLabel: { color: "#fff", marginRight: 8, fontSize: 12.5, fontWeight: "600", opacity: 0.95 },
   chatArea: { flex: 1, backgroundColor: ACCENT_DARK },
   emptyText: { color: "#ccc", fontStyle: "italic", textAlign: "center", marginTop: 40 },
   bubble: { borderRadius: 12, padding: 12, marginBottom: 10, maxWidth: "85%" },
