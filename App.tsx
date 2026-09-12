@@ -222,7 +222,8 @@ async function askGemini(
   history: ChatTurn[],
   userText: string,
   locationText: string,
-  weatherText: string
+  weatherText: string,
+  speedKmh: number | null
 ): Promise<string> {
   const now = new Date();
   const hour = now.getHours();
@@ -235,6 +236,13 @@ async function askGemini(
   ];
   if (locationText) contextParts.push(`the driver's current approximate location is ${locationText}`);
   if (weatherText) contextParts.push(`the current real weather there is ${weatherText}`);
+  if (speedKmh != null) {
+    contextParts.push(
+      speedKmh < 3
+        ? "the car's GPS speed is near 0, so the driver is currently stationary/parked/testing the app, not actively driving - don't talk as if you're mid-drive right now"
+        : `the car is currently moving at about ${speedKmh} km/h`
+    );
+  }
   const contextPrefix = contextParts.length ? `[Live trip context: ${contextParts.join("; ")}.]\n` : "";
   const contents = history.slice(-MAX_HISTORY_TURNS).map((t) => ({
     role: t.role === "assistant" ? "model" : "user",
@@ -370,6 +378,7 @@ function AppInner() {
   const [handsFree, setHandsFree] = useState(true);
   const [locationText, setLocationText] = useState("");
   const [weatherText, setWeatherText] = useState("");
+  const [speedKmh, setSpeedKmh] = useState<number | null>(null);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState("Locating...");
   const scrollRef = useRef<ScrollView>(null);
@@ -409,6 +418,12 @@ function AppInner() {
         { accuracy: Location.Accuracy.Balanced, timeInterval: 20000, distanceInterval: 150 },
         async (pos) => {
           setLastCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+          // pos.coords.speed is meters/sec (null if unavailable) - lets her
+          // tell actual driving apart from sitting still/testing, instead
+          // of always talking as if you're mid-drive.
+          if (pos.coords.speed != null && pos.coords.speed >= 0) {
+            setSpeedKmh(Math.round(pos.coords.speed * 3.6));
+          }
           const now = Date.now();
 
           // Weather doesn't need to refresh nearly as often as position -
@@ -495,7 +510,7 @@ function AppInner() {
     } else if (!(await checkAndIncrementDailyQuota())) {
       reply = "We've chatted so much today we hit the daily limit - let's pick this up tomorrow.";
     } else {
-      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText);
+      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText, speedKmh);
     }
 
     setHistory((h) => [...h, { role: "assistant", content: reply }]);
