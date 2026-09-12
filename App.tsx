@@ -220,6 +220,26 @@ async function reverseGeocode(lat: number, lon: number): Promise<string> {
   }
 }
 
+async function nativeLandmarkName(lat: number, lon: number): Promise<string> {
+  // Android's on-device geocoder (via Google Play Services) and iOS's
+  // CLGeocoder often recognize named places/estates/complexes that the
+  // free OpenStreetMap data doesn't have - and it's genuinely free/no
+  // billing account, because it's a phone OS capability, not a paid web
+  // API call. Best-effort only: if it doesn't return a useful landmark
+  // name, this just contributes nothing and Nominatim's result stands
+  // alone.
+  try {
+    const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+    const name = results?.[0]?.name;
+    // A `name` that's just the street number (already covered by
+    // reverseGeocode()'s own streetLine) isn't a useful addition.
+    if (name && !/^\d+$/.test(name)) return name;
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 const WEATHER_CODES: Record<number, string> = {
   0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcast",
   45: "foggy", 48: "foggy", 51: "light drizzle", 53: "drizzle", 55: "heavy drizzle",
@@ -523,9 +543,13 @@ function AppInner() {
           if (now - lastGeocodeAt < 15000) return; // extra safety against back-to-back calls
           lastGeocodeAt = now;
           try {
-            const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-            setLocationText(place);
-            setLocationStatus(place ? `📍 ${place}` : "📍 Location on, but couldn't identify the area");
+            const [place, landmark] = await Promise.all([
+              reverseGeocode(pos.coords.latitude, pos.coords.longitude),
+              nativeLandmarkName(pos.coords.latitude, pos.coords.longitude),
+            ]);
+            const fullPlace = landmark && !place.startsWith(landmark) ? `${landmark}, ${place}` : place;
+            setLocationText(fullPlace);
+            setLocationStatus(fullPlace ? `📍 ${fullPlace}` : "📍 Location on, but couldn't identify the area");
           } catch {
             setLocationStatus("📍 Couldn't get your location");
           }
