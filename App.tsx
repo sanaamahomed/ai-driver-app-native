@@ -21,6 +21,7 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 // -----------------------------------------------------------------------
 // Same brand palette as the web version - Racing Orange (real papaya
@@ -103,14 +104,21 @@ type ChatTurn = { role: "user" | "assistant"; content: string };
 
 async function reverseGeocode(lat: number, lon: number): Promise<string> {
   try {
+    // zoom=18 asks Nominatim for street-level detail instead of the
+    // municipal-ward-level result zoom=14 was giving ("eThekwini Ward 35"
+    // instead of an actual street/area name) - road/neighbourhood/suburb
+    // are prioritized ahead of the ward/city/county fields so the result
+    // reads like a real place, not an administrative boundary.
     const resp = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14`,
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
       { headers: { "User-Agent": "ai-driver-app-native/1.0" } }
     );
     if (!resp.ok) return "";
     const data = await resp.json();
     const addr = data.address || {};
-    const candidates = ["suburb", "city", "town", "county", "state", "country"]
+    const candidates = [
+      "road", "neighbourhood", "suburb", "village", "town", "city_district", "city", "county", "state",
+    ]
       .map((k) => addr[k])
       .filter(Boolean);
     const seen = new Set<string>();
@@ -178,6 +186,14 @@ async function checkAndIncrementDailyQuota(): Promise<boolean> {
 }
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppInner />
+    </SafeAreaProvider>
+  );
+}
+
+function AppInner() {
   const [apiKey, setApiKey] = useState(EMBEDDED_API_KEY);
   const [showSetup, setShowSetup] = useState(!EMBEDDED_API_KEY);
   const [history, setHistory] = useState<ChatTurn[]>([]);
@@ -306,7 +322,7 @@ export default function App() {
 
   if (showSetup) {
     return (
-      <View style={styles.setupContainer}>
+      <SafeAreaView style={styles.setupContainer} edges={["top", "bottom"]}>
         <StatusBar style="light" />
         <Text style={styles.setupTitle}>AI DRIVER APP</Text>
         <Text style={styles.setupSubtitle}>Enter your free Gemini API key to get started</Text>
@@ -322,7 +338,7 @@ export default function App() {
         <Pressable style={styles.setupButton} onPress={saveApiKey}>
           <Text style={styles.setupButtonText}>Start Driving</Text>
         </Pressable>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -331,7 +347,7 @@ export default function App() {
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.header}>
+      <SafeAreaView style={styles.header} edges={["top"]}>
         <StatusBar style="light" />
         <Text style={styles.headerTitle}>AI DRIVER APP</Text>
         <Text style={styles.headerSubtitle}>{locationStatus}</Text>
@@ -339,7 +355,7 @@ export default function App() {
           <Text style={styles.handsFreeLabel}>Hands-free</Text>
           <Switch value={handsFree} onValueChange={setHandsFree} trackColor={{ true: ACCENT }} />
         </View>
-      </View>
+      </SafeAreaView>
 
       <ScrollView ref={scrollRef} style={styles.chatArea} contentContainerStyle={{ padding: 16 }}>
         {history.length === 0 && (
@@ -359,7 +375,7 @@ export default function App() {
         {isThinking && <ActivityIndicator color={ACCENT} style={{ marginTop: 8 }} />}
       </ScrollView>
 
-      <View style={styles.inputArea}>
+      <SafeAreaView style={styles.inputArea} edges={["bottom"]}>
         <Pressable
           style={[styles.micButton, isListening && styles.micButtonActive]}
           onPress={startListening}
@@ -380,7 +396,7 @@ export default function App() {
             <Text style={styles.sendButtonText}>↑</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
@@ -406,7 +422,7 @@ const styles = StyleSheet.create({
   },
   setupButton: { backgroundColor: ACCENT_DARK, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
   setupButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  header: { backgroundColor: ACCENT, padding: 16, paddingTop: 56 },
+  header: { backgroundColor: ACCENT, padding: 16 },
   headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
   headerSubtitle: { fontSize: 12, color: "#fff", marginTop: 4, opacity: 0.9 },
   handsFreeRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
