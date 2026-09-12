@@ -32,6 +32,14 @@ const ACCENT_DARK = "#1A1A1A";
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const MAX_HISTORY_TURNS = 12;
 
+// Baked into the build (see eas.json) so testers never have to get their
+// own key - fine for sharing a link, but means the key lives inside the
+// installed app and a determined person could extract it. DAILY_QUOTA
+// below is the safety net for that: a per-device daily reply cap so even
+// an extracted key can't run up real cost through this app.
+const EMBEDDED_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
+const DAILY_QUOTA = 60;
+
 const SYSTEM_PROMPT = `You are a warm, friendly female companion riding along in the car with the
 driver, keeping them company on the drive - easy conversation, genuine warmth, a bit of light
 humor, and real substance when they want to go deep - history, philosophy, science, whatever
@@ -159,9 +167,19 @@ async function askGemini(
   return "Sorry, I lost signal there for a second - mind saying that again?";
 }
 
+async function checkAndIncrementDailyQuota(): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10);
+  const raw = await AsyncStorage.getItem("daily_quota");
+  const data = raw ? JSON.parse(raw) : {};
+  const count = data.date === today ? data.count : 0;
+  if (count >= DAILY_QUOTA) return false;
+  await AsyncStorage.setItem("daily_quota", JSON.stringify({ date: today, count: count + 1 }));
+  return true;
+}
+
 export default function App() {
-  const [apiKey, setApiKey] = useState("");
-  const [showSetup, setShowSetup] = useState(true);
+  const [apiKey, setApiKey] = useState(EMBEDDED_API_KEY);
+  const [showSetup, setShowSetup] = useState(!EMBEDDED_API_KEY);
   const [history, setHistory] = useState<ChatTurn[]>([]);
   const [typedText, setTypedText] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -171,8 +189,11 @@ export default function App() {
   const [locationStatus, setLocationStatus] = useState("Locating...");
   const scrollRef = useRef<ScrollView>(null);
 
-  // Load saved API key once.
+  // Fallback only: if this build has no embedded key (e.g. running via
+  // `expo start` without eas.json's env), fall back to a manually-entered
+  // key saved from a previous session.
   useEffect(() => {
+    if (EMBEDDED_API_KEY) return;
     (async () => {
       const saved = await AsyncStorage.getItem("gemini_api_key");
       if (saved) {
@@ -255,6 +276,8 @@ export default function App() {
     } else if (intent === "music") {
       reply = `Sure thing - opening Spotify for ${payload}.`;
       Linking.openURL(spotifyUrl(payload));
+    } else if (!(await checkAndIncrementDailyQuota())) {
+      reply = "We've chatted so much today we hit the daily limit - let's pick this up tomorrow.";
     } else {
       reply = await askGemini(apiKey, nextHistory, cleaned, locationText);
     }
