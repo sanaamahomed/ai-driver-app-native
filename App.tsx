@@ -171,14 +171,19 @@ async function reverseGeocode(lat: number, lon: number): Promise<string> {
     // below and checking `typeof === "string"` made every field name look
     // like a literal value too, printing "neighbourhood, suburb, village"
     // instead of actually looking those fields up in `addr`.)
-    const candidates = [
+    const localCandidates = [
       streetLine,
       addr.neighbourhood, addr.suburb, addr.village, addr.town,
       addr.city_district, addr.city, addr.county, addr.state,
     ].filter(Boolean);
     const seen = new Set<string>();
-    const parts = candidates.filter((p) => (seen.has(p) ? false : (seen.add(p), true)));
-    return parts.slice(0, 3).join(", ");
+    const localParts = localCandidates.filter((p) => (seen.has(p) ? false : (seen.add(p), true)));
+    // Always keep country in the result (appended separately, not just
+    // sliced from the combined list) so she can answer "what country am I
+    // in" too, not only street/suburb-level questions.
+    const parts = localParts.slice(0, 3);
+    if (addr.country && !parts.includes(addr.country)) parts.push(addr.country);
+    return parts.join(", ");
   } catch {
     return "";
   }
