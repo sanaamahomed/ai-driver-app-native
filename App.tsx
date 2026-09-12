@@ -116,10 +116,13 @@ async function reverseGeocode(lat: number, lon: number): Promise<string> {
     if (!resp.ok) return "";
     const data = await resp.json();
     const addr = data.address || {};
+    // Lead with an exact "12 Example Road" when house_number is available,
+    // then fall back down through progressively coarser fields.
+    const streetLine = addr.house_number && addr.road ? `${addr.house_number} ${addr.road}` : addr.road;
     const candidates = [
-      "road", "neighbourhood", "suburb", "village", "town", "city_district", "city", "county", "state",
+      streetLine, "neighbourhood", "suburb", "village", "town", "city_district", "city", "county", "state",
     ]
-      .map((k) => addr[k])
+      .map((k) => (typeof k === "string" ? k : addr[k]))
       .filter(Boolean);
     const seen = new Set<string>();
     const parts = candidates.filter((p) => (seen.has(p) ? false : (seen.add(p), true)));
@@ -219,24 +222,42 @@ function AppInner() {
     })();
   }, []);
 
-  // One-shot real GPS lookup, same intent as the web version's location
-  // feature - direct native access, no browser permission-prompt games.
+  // Live GPS tracking while driving - this is the actual point of the app,
+  // so a one-shot lookup at launch isn't enough. Re-checks whenever the
+  // phone has moved ~150m or every 20s, whichever comes first, and updates
+  // her location context continuously as the drive progresses. Throttled
+  // by distance/time (not every GPS tick) to stay well within Nominatim's
+  // free-tier usage policy (max ~1 request/sec).
   useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+    let lastGeocodeAt = 0;
+
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setLocationStatus("Location not shared - allow it in Settings to let her know where you are");
         return;
       }
-      try {
-        const pos = await Location.getCurrentPositionAsync({});
-        const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-        setLocationText(place);
-        setLocationStatus(place ? `📍 ${place}` : "📍 Location on, but couldn't identify the area");
-      } catch {
-        setLocationStatus("📍 Couldn't get your location");
-      }
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 20000, distanceInterval: 150 },
+        async (pos) => {
+          const now = Date.now();
+          if (now - lastGeocodeAt < 15000) return; // extra safety against back-to-back calls
+          lastGeocodeAt = now;
+          try {
+            const place = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+            setLocationText(place);
+            setLocationStatus(place ? `📍 ${place}` : "📍 Location on, but couldn't identify the area");
+          } catch {
+            setLocationStatus("📍 Couldn't get your location");
+          }
+        }
+      );
     })();
+
+    return () => {
+      subscription?.remove();
+    };
   }, []);
 
   useSpeechRecognitionEvent("result", (event) => {
