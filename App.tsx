@@ -117,7 +117,14 @@ function detectIntent(
   }
   for (const pat of MUSIC_PATTERNS) {
     const m = lowered.match(pat);
-    if (m) return { intent: "music", payload: m[1].trim().replace(/[.!?]+$/, "") };
+    if (m) {
+      const payload = m[1].trim().replace(/[.!?]+$/, "");
+      // "Play" is genuinely ambiguous - "play games"/"play a game" almost
+      // always means "let's play something together," not "play this
+      // artist/song on Spotify." Don't treat those as a music command.
+      if (/\bgames?\b/i.test(payload)) continue;
+      return { intent: "music", payload };
+    }
   }
   for (const pat of TRAFFIC_PATTERNS) {
     if (pat.test(lowered)) return { intent: "traffic", payload: "" };
