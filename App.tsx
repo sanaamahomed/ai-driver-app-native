@@ -75,19 +75,29 @@ Hard rules for every reply, no exceptions:
   about any of that and you weren't given real trip context, say so plainly and tell them to
   check Google Maps or Waze for real current conditions - never invent a traffic report.`;
 
+// All anchored with ^ (with an optional polite lead-in) so a word like
+// "play" or "go" only triggers a handoff when it's actually the command
+// at the START of what was said - not whenever it happens to appear
+// somewhere inside an unrelated sentence ("play devil's advocate" no
+// longer fires Spotify).
+const LEAD_IN = "(?:please |can you |could you |hey )*";
 const NAV_PATTERNS = [
-  /take me to (.+)/i,
-  /navigate to (.+)/i,
-  /directions to (.+)/i,
-  /find (?:the |a )?(?:nearest|closest) (.+)/i,
-  /where(?:'s| is) the (?:nearest|closest) (.+)/i,
-  /(?:i want to |i need to |i have to |let'?s |can we |could we |please )*go to (.+)/i,
-  /head(?:ing)? to (.+)/i,
-  /drive to (.+)/i,
-  /get (?:us |me )?to (.+)/i,
-  /how do (?:i|we) get to (.+)/i,
+  new RegExp(`^${LEAD_IN}take me to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}navigate to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}directions to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}find (?:the |a )?(?:nearest|closest) (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}where(?:'s| is) the (?:nearest|closest) (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}(?:i want to |i need to |i have to |let'?s |can we |could we )*go to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}head(?:ing)? to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}drive to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}get (?:us |me )?to (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}how do (?:i|we) get to (.+)`, "i"),
 ];
-const MUSIC_PATTERNS = [/play (.+)/i, /put on (.+)/i, /listen to (.+)/i];
+const MUSIC_PATTERNS = [
+  new RegExp(`^${LEAD_IN}play (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}put on (.+)`, "i"),
+  new RegExp(`^${LEAD_IN}listen to (.+)`, "i"),
+];
 // Live traffic/road-block/hazard data needs a paid traffic-data API (e.g.
 // Google Maps Platform) - not something free here. Being honest about that
 // and handing off to Maps (which DOES have real live traffic) beats
