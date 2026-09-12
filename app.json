@@ -14,8 +14,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.aidriverapp.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Used so you can talk to your AI companion hands-free while driving.",
-        "NSSpeechRecognitionUsageDescription": "Used to turn what you say into text for your AI companion.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone so you can talk to your AI companion.",
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition to turn your voice into text.",
         "NSLocationWhenInUseUsageDescription": "Used so your AI companion knows roughly where you are during the drive."
       }
     },
@@ -50,9 +50,16 @@
         {
           "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone so you can talk to your AI companion.",
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition to turn your voice into text.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "94cfefa0-3399-489a-840f-a01906a884db"
+      }
+    }
   }
 }
