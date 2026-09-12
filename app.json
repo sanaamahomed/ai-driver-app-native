@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "AI Driver App",
+    "slug": "ai-driver-app-native",
+    "owner": "junaid.mahomed",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FF8000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aidriverapp.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Used so you can talk to your AI companion hands-free while driving.",
+        "NSSpeechRecognitionUsageDescription": "Used to turn what you say into text for your AI companion.",
+        "NSLocationWhenInUseUsageDescription": "Used so your AI companion knows roughly where you are during the drive."
+      }
+    },
+    "android": {
+      "package": "com.aidriverapp.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#FF8000"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-status-bar",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location so your AI companion knows roughly where you are."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone so you can talk to your AI companion.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition to turn your voice into text.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ]
+    ]
+  }
+}
