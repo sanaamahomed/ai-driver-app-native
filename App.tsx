@@ -95,6 +95,12 @@ Hard rules for every reply, no exceptions:
 - You also do NOT have live traffic, road closure, accident, or emergency-alert data. If asked
   about any of that and you weren't given real trip context, say so plainly and tell them to
   check Google Maps or Waze for real current conditions - never invent a traffic report.
+- You do NOT have live internet access, so you do NOT know today's news, sports scores/results,
+  or anything that happened recently - only what you learned during training, which is not
+  current. If asked about news, sports results, or "what's happening right now," say plainly
+  that you don't have live access to today's information and can't guarantee anything you'd say
+  is current - never present old/remembered information as if it's today's news or today's
+  score.
 - Use the driver's real location (when given) to be genuinely locally aware: local culture,
   customs, food, history, slang, or things worth knowing about that specific country/region -
   bring that in naturally when it fits the conversation, not just generic small talk that could
@@ -293,26 +299,21 @@ async function askGemini(
   }));
   contents.push({ role: "user", parts: [{ text: contextPrefix + userText }] });
 
-  // Live Google Search grounding - free tier, no extra key - so she can
-  // answer news/sports/current-events questions with real current info
-  // instead of guessing from stale training data. Not every key/tier is
-  // guaranteed to support this, so the second attempt drops the tool
-  // entirely rather than failing outright if grounding itself errors.
-  const bodies = [
-    {
-      contents,
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      generationConfig: { maxOutputTokens: 200 },
-      tools: [{ google_search: {} }],
-    },
-    {
-      contents,
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      generationConfig: { maxOutputTokens: 200 },
-    },
-  ];
+  // Google Search grounding was tried here but confirmed (via direct API
+  // testing, 2026-09-12) to hard-fail with 429 RESOURCE_EXHAUSTED on a
+  // free-tier key every single time, not just under heavy load - it
+  // requires a paid/billed Gemini plan to actually work at all, same as
+  // the Places API tradeoff. Since the user can't use a credit card, this
+  // is now a single plain call - no wasted grounded attempt - and
+  // SYSTEM_PROMPT's honesty rules (below) cover news/sports explicitly so
+  // she says she doesn't have live access instead of silently guessing.
+  const body = {
+    contents,
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    generationConfig: { maxOutputTokens: 200 },
+  };
 
-  for (const body of bodies) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const resp = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
