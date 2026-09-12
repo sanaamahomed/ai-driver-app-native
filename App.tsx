@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -148,11 +149,16 @@ async function reverseGeocode(lat: number, lon: number): Promise<string> {
     // Lead with an exact "12 Example Road" when house_number is available,
     // then fall back down through progressively coarser fields.
     const streetLine = addr.house_number && addr.road ? `${addr.house_number} ${addr.road}` : addr.road;
+    // (Bug that shipped in the previous build: mixing streetLine - an
+    // already-resolved string - into the same array as the field NAMES
+    // below and checking `typeof === "string"` made every field name look
+    // like a literal value too, printing "neighbourhood, suburb, village"
+    // instead of actually looking those fields up in `addr`.)
     const candidates = [
-      streetLine, "neighbourhood", "suburb", "village", "town", "city_district", "city", "county", "state",
-    ]
-      .map((k) => (typeof k === "string" ? k : addr[k]))
-      .filter(Boolean);
+      streetLine,
+      addr.neighbourhood, addr.suburb, addr.village, addr.town,
+      addr.city_district, addr.city, addr.county, addr.state,
+    ].filter(Boolean);
     const seen = new Set<string>();
     const parts = candidates.filter((p) => (seen.has(p) ? false : (seen.add(p), true)));
     return parts.slice(0, 3).join(", ");
@@ -509,7 +515,10 @@ function AppInner() {
     >
       <SafeAreaView style={styles.header} edges={["top"]}>
         <StatusBar style="light" />
-        <Text style={styles.headerTitle}>AI DRIVER APP</Text>
+        <View style={styles.headerTitleRow}>
+          <Image source={require("./assets/android-icon-foreground.png")} style={styles.headerLogo} />
+          <Text style={styles.headerTitle}>AI DRIVER APP</Text>
+        </View>
         <Text style={styles.headerSubtitle}>{locationStatus}</Text>
         <View style={styles.handsFreeRow}>
           <Text style={styles.handsFreeLabel}>Hands-free</Text>
@@ -583,6 +592,8 @@ const styles = StyleSheet.create({
   setupButton: { backgroundColor: ACCENT_DARK, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
   setupButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   header: { backgroundColor: ACCENT, padding: 16 },
+  headerTitleRow: { flexDirection: "row", alignItems: "center" },
+  headerLogo: { width: 32, height: 32, marginRight: 10, borderRadius: 6 },
   headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
   headerSubtitle: { fontSize: 12, color: "#fff", marginTop: 4, opacity: 0.9 },
   handsFreeRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
