@@ -33,7 +33,11 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 // -----------------------------------------------------------------------
 const ACCENT = "#4A154B";
 const ACCENT2 = "#64C3EB";
-const ACCENT_DARK = "#170D18";
+// Slack itself never pairs its purple header with a black body - it's
+// purple/color chrome over a light, clean content area. Matching that
+// instead of the black-on-purple combo from before.
+const BG_LIGHT = "#F7F4FA";
+const DARK_INK = "#1A1730";
 // Reserved for small status/info accents (pills, bubbles) - not page
 // chrome - same "chrome vs status color" split as the original design.
 const STATUS_GREEN = "#5BB381";
@@ -679,7 +683,7 @@ function AppInner() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: ACCENT_DARK },
+  flex: { flex: 1, backgroundColor: BG_LIGHT },
   setupContainer: {
     flex: 1,
     backgroundColor: ACCENT,
@@ -697,7 +701,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
   },
-  setupButton: { backgroundColor: ACCENT_DARK, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
+  setupButton: { backgroundColor: DARK_INK, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
   setupButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   headerSafeArea: { backgroundColor: ACCENT },
   header: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 16 },
@@ -721,20 +725,45 @@ const styles = StyleSheet.create({
   exchangePillText: { color: "#8A6B1F" },
   handsFreeRow: { flexDirection: "row", alignItems: "center" },
   handsFreeLabel: { color: "#fff", marginRight: 8, fontSize: 12.5, fontWeight: "600", opacity: 0.95 },
-  chatArea: { flex: 1, backgroundColor: ACCENT_DARK },
-  emptyText: { color: "#ccc", fontStyle: "italic", textAlign: "center", marginTop: 40 },
+  chatArea: { flex: 1, backgroundColor: BG_LIGHT },
+  emptyText: { color: "#8A8398", fontStyle: "italic", textAlign: "center", marginTop: 40 },
   bubble: { borderRadius: 12, padding: 12, marginBottom: 10, maxWidth: "85%" },
   bubbleUser: { backgroundColor: ACCENT2, alignSelf: "flex-end" },
-  bubbleAssistant: { backgroundColor: SURFACE_LIGHT, alignSelf: "flex-start", borderLeftWidth: 3, borderLeftColor: STATUS_PINK },
+  bubbleAssistant: {
+    backgroundColor: "#fff",
+    alignSelf: "flex-start",
+    borderLeftWidth: 3,
+    borderLeftColor: STATUS_PINK,
+    borderWidth: 1,
+    borderColor: "#EAE4EF",
+  },
   bubbleTag: { fontSize: 10, fontWeight: "700", opacity: 0.6, marginBottom: 4 },
   bubbleTextUser: { color: "#0B2430", fontSize: 14 },
   bubbleTextAssistant: { color: "#1D1929", fontSize: 14 },
-  inputArea: { backgroundColor: ACCENT_DARK, padding: 12, paddingBottom: 24 },
-  micButton: { backgroundColor: SURFACE_LIGHT, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 8 },
-  micButtonActive: { backgroundColor: "#D9F0E6" },
+  inputArea: { backgroundColor: BG_LIGHT, padding: 12, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "#EAE4EF" },
+  micButton: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#EAE4EF",
+  },
+  micButtonActive: { backgroundColor: "#D9F0E6", borderColor: "#D9F0E6" },
   micButtonText: { color: ACCENT, fontWeight: "700", fontSize: 15 },
   typeRow: { flexDirection: "row", alignItems: "center" },
-  typeInput: { flex: 1, backgroundColor: SURFACE_LIGHT, borderRadius: 10, padding: 12, fontSize: 14, marginRight: 8, color: "#1D1929" },
+  typeInput: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    marginRight: 8,
+    color: "#1D1929",
+    borderWidth: 1,
+    borderColor: "#EAE4EF",
+  },
   sendButton: { backgroundColor: ACCENT2, borderRadius: 10, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   sendButtonText: { color: "#0B2430", fontSize: 20, fontWeight: "700" },
 });
