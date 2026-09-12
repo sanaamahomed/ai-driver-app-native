@@ -32,9 +32,18 @@ import { LinearGradient } from "expo-linear-gradient";
 // orange/black livery colors, deliberately not named after any car brand
 // to avoid trademark issues).
 // -----------------------------------------------------------------------
-const ACCENT = "#FF8A00";
-const ACCENT2 = "#FF3D00";
-const ACCENT_DARK = "#1A1A1A";
+const ACCENT = "#4A154B";
+const ACCENT2 = "#64C3EB";
+const ACCENT_DARK = "#170D18";
+// Reserved for small status/info accents (pills, bubbles) - not page
+// chrome - same "chrome vs status color" split as the original design.
+const STATUS_GREEN = "#5BB381";
+const STATUS_YELLOW = "#E3B34C";
+const STATUS_PINK = "#CE375C";
+// A tinted off-white instead of stark plain white for big surfaces
+// (assistant bubbles, mic button, text input) - reads as part of the
+// purple/blue palette instead of a flat white block dropped on top of it.
+const SURFACE_LIGHT = "#EFE6F1";
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const MAX_HISTORY_TURNS = 12;
 
@@ -600,7 +609,7 @@ function AppInner() {
               </View>
               <View style={styles.handsFreeRow}>
                 <Text style={styles.handsFreeLabel}>Hands-free</Text>
-                <Switch value={handsFree} onValueChange={setHandsFree} trackColor={{ true: "#FFFFFF66", false: "#00000033" }} thumbColor="#fff" />
+                <Switch value={handsFree} onValueChange={setHandsFree} trackColor={{ true: STATUS_PINK, false: "#00000033" }} thumbColor="#fff" />
               </View>
             </View>
             <View style={styles.statusRow}>
@@ -608,6 +617,11 @@ function AppInner() {
               {weatherText ? (
                 <View style={styles.weatherPill}>
                   <Text style={styles.weatherPillText}>{weatherText}</Text>
+                </View>
+              ) : null}
+              {exchangeRateText ? (
+                <View style={[styles.weatherPill, styles.exchangePill]}>
+                  <Text style={[styles.weatherPillText, styles.exchangePillText]}>{exchangeRateText}</Text>
                 </View>
               ) : null}
             </View>
@@ -672,7 +686,7 @@ const styles = StyleSheet.create({
   setupSubtitle: { fontSize: 14, color: "#fff", marginBottom: 24, textAlign: "center" },
   setupInput: {
     width: "100%",
-    backgroundColor: "#fff",
+    backgroundColor: SURFACE_LIGHT,
     borderRadius: 10,
     padding: 14,
     fontSize: 14,
@@ -688,28 +702,30 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 8 },
   headerSubtitle: { fontSize: 12.5, color: "#fff", opacity: 0.95, flexShrink: 1 },
   weatherPill: {
-    backgroundColor: "rgba(0,0,0,0.18)",
+    backgroundColor: STATUS_GREEN,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 20,
   },
-  weatherPillText: { color: "#fff", fontSize: 11.5, fontWeight: "600" },
+  weatherPillText: { color: "#fff", fontSize: 11.5, fontWeight: "700" },
+  exchangePill: { backgroundColor: STATUS_YELLOW },
+  exchangePillText: { color: "#3B2A08" },
   handsFreeRow: { flexDirection: "row", alignItems: "center" },
   handsFreeLabel: { color: "#fff", marginRight: 8, fontSize: 12.5, fontWeight: "600", opacity: 0.95 },
   chatArea: { flex: 1, backgroundColor: ACCENT_DARK },
   emptyText: { color: "#ccc", fontStyle: "italic", textAlign: "center", marginTop: 40 },
   bubble: { borderRadius: 12, padding: 12, marginBottom: 10, maxWidth: "85%" },
-  bubbleUser: { backgroundColor: ACCENT, alignSelf: "flex-end" },
-  bubbleAssistant: { backgroundColor: "#fff", alignSelf: "flex-start", borderLeftWidth: 3, borderLeftColor: ACCENT },
+  bubbleUser: { backgroundColor: ACCENT2, alignSelf: "flex-end" },
+  bubbleAssistant: { backgroundColor: SURFACE_LIGHT, alignSelf: "flex-start", borderLeftWidth: 3, borderLeftColor: STATUS_PINK },
   bubbleTag: { fontSize: 10, fontWeight: "700", opacity: 0.6, marginBottom: 4 },
-  bubbleTextUser: { color: "#fff", fontSize: 14 },
+  bubbleTextUser: { color: "#0B2430", fontSize: 14 },
   bubbleTextAssistant: { color: "#1D1929", fontSize: 14 },
   inputArea: { backgroundColor: ACCENT_DARK, padding: 12, paddingBottom: 24 },
-  micButton: { backgroundColor: "#fff", borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 8 },
-  micButtonActive: { backgroundColor: "#FFE0B2" },
+  micButton: { backgroundColor: SURFACE_LIGHT, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 8 },
+  micButtonActive: { backgroundColor: "#D9F0E6" },
   micButtonText: { color: ACCENT, fontWeight: "700", fontSize: 15 },
   typeRow: { flexDirection: "row", alignItems: "center" },
-  typeInput: { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, fontSize: 14, marginRight: 8 },
-  sendButton: { backgroundColor: ACCENT, borderRadius: 10, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "700" },
+  typeInput: { flex: 1, backgroundColor: SURFACE_LIGHT, borderRadius: 10, padding: 12, fontSize: 14, marginRight: 8, color: "#1D1929" },
+  sendButton: { backgroundColor: ACCENT2, borderRadius: 10, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  sendButtonText: { color: "#0B2430", fontSize: 20, fontWeight: "700" },
 });
