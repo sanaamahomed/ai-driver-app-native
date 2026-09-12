@@ -25,7 +25,6 @@ import {
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 
 // -----------------------------------------------------------------------
 // Same brand palette as the web version - Racing Orange (real papaya
@@ -455,8 +454,16 @@ function AppInner() {
         return;
       }
       subscription = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, timeInterval: 20000, distanceInterval: 150 },
+        { accuracy: Location.Accuracy.High, timeInterval: 20000, distanceInterval: 150 },
         async (pos) => {
+          // Balanced accuracy can silently fall back to wifi/cell-tower
+          // positioning, which can be off by kilometers (this was the
+          // cause of a wildly wrong address showing up) - High forces
+          // real GPS. Still filter out any fix worse than 200m accuracy
+          // radius so an obviously bad reading never gets shown as if it
+          // were reliable (accuracy is null on some devices - allow those
+          // through since there's nothing better to check against).
+          if (pos.coords.accuracy != null && pos.coords.accuracy > 200) return;
           setLastCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
           // pos.coords.speed is meters/sec (null if unavailable) - lets her
           // tell actual driving apart from sitting still/testing, instead
@@ -598,10 +605,9 @@ function AppInner() {
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <LinearGradient colors={[ACCENT, ACCENT2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <SafeAreaView edges={["top"]}>
-          <StatusBar style="light" />
-          <View style={styles.header}>
+      <SafeAreaView edges={["top"]} style={styles.headerSafeArea}>
+        <StatusBar style="light" />
+        <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <View style={styles.headerTitleRow}>
                 <Image source={require("./assets/android-icon-foreground.png")} style={styles.headerLogo} />
@@ -625,9 +631,8 @@ function AppInner() {
                 </View>
               ) : null}
             </View>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+        </View>
+      </SafeAreaView>
 
       <ScrollView ref={scrollRef} style={styles.chatArea} contentContainerStyle={{ padding: 16 }}>
         {history.length === 0 && (
@@ -694,6 +699,7 @@ const styles = StyleSheet.create({
   },
   setupButton: { backgroundColor: ACCENT_DARK, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32 },
   setupButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  headerSafeArea: { backgroundColor: ACCENT },
   header: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 16 },
   headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitleRow: { flexDirection: "row", alignItems: "center" },
@@ -701,15 +707,18 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 19, fontWeight: "800", color: "#fff", letterSpacing: 0.3 },
   statusRow: { flexDirection: "row", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 8 },
   headerSubtitle: { fontSize: 12.5, color: "#fff", opacity: 0.95, flexShrink: 1 },
+  // Muted light-tint badges (not loud saturated fills) - solid color is
+  // reserved for interactive elements (buttons/toggles), tints for
+  // informational status badges, same restraint as Pulse Flow's design.
   weatherPill: {
-    backgroundColor: STATUS_GREEN,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    backgroundColor: "#E1F7EC",
+    paddingHorizontal: 11,
+    paddingVertical: 4,
     borderRadius: 20,
   },
-  weatherPillText: { color: "#fff", fontSize: 11.5, fontWeight: "700" },
-  exchangePill: { backgroundColor: STATUS_YELLOW },
-  exchangePillText: { color: "#3B2A08" },
+  weatherPillText: { color: "#1F8A6D", fontSize: 11.5, fontWeight: "700", letterSpacing: 0.2 },
+  exchangePill: { backgroundColor: "#FBF3E1" },
+  exchangePillText: { color: "#8A6B1F" },
   handsFreeRow: { flexDirection: "row", alignItems: "center" },
   handsFreeLabel: { color: "#fff", marginRight: 8, fontSize: 12.5, fontWeight: "600", opacity: 0.95 },
   chatArea: { flex: 1, backgroundColor: ACCENT_DARK },
