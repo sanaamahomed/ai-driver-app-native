@@ -64,7 +64,10 @@ Hard rules for every reply, no exceptions:
   and you were not given real trip context, say plainly that you don't have their exact live
   location and suggest they check their maps app - never guess or make up an answer that sounds
   precise.
-- Always use kilometers and km/h, never miles or mph, unless the driver's own message uses miles.`;
+- Always use kilometers and km/h, never miles or mph, unless the driver's own message uses miles.
+- You also do NOT have live traffic, road closure, accident, or emergency-alert data. If asked
+  about any of that and you weren't given real trip context, say so plainly and tell them to
+  check Google Maps or Waze for real current conditions - never invent a traffic report.`;
 
 const NAV_PATTERNS = [
   /take me to (.+)/i,
@@ -79,8 +82,18 @@ const NAV_PATTERNS = [
   /how do (?:i|we) get to (.+)/i,
 ];
 const MUSIC_PATTERNS = [/play (.+)/i, /put on (.+)/i, /listen to (.+)/i];
+// Live traffic/road-block/hazard data needs a paid traffic-data API (e.g.
+// Google Maps Platform) - not something free here. Being honest about that
+// and handing off to Maps (which DOES have real live traffic) beats
+// guessing, same pattern as the nav/music handoffs below.
+const TRAFFIC_PATTERNS = [
+  /road ?block/i, /road closed/i, /road closure/i, /any traffic/i, /how'?s traffic/i,
+  /traffic (?:like|ahead|report|conditions?)/i, /accident/i, /any hazards?/i,
+];
 
-function detectIntent(text: string): { intent: "nav" | "music" | null; payload: string } {
+function detectIntent(
+  text: string
+): { intent: "nav" | "music" | "traffic" | null; payload: string } {
   const lowered = text.toLowerCase().trim();
   for (const pat of NAV_PATTERNS) {
     const m = lowered.match(pat);
@@ -90,11 +103,22 @@ function detectIntent(text: string): { intent: "nav" | "music" | null; payload: 
     const m = lowered.match(pat);
     if (m) return { intent: "music", payload: m[1].trim().replace(/[.!?]+$/, "") };
   }
+  for (const pat of TRAFFIC_PATTERNS) {
+    if (pat.test(lowered)) return { intent: "traffic", payload: "" };
+  }
   return { intent: null, payload: "" };
 }
 
 function mapsUrl(destination: string) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+function mapsTrafficUrl(lat?: number, lon?: number) {
+  // Opens Maps centered on the driver's last known spot with the traffic
+  // layer Google Maps shows by default - real live data, just not ours.
+  if (lat != null && lon != null) {
+    return `https://www.google.com/maps/@${lat},${lon},15z/data=!5m1!1e1`;
+  }
+  return "https://www.google.com/maps/@?api=1&map_action=map&layer=traffic";
 }
 function spotifyUrl(query: string) {
   return `https://open.spotify.com/search/${encodeURIComponent(query)}`;
@@ -205,6 +229,7 @@ function AppInner() {
   const [isThinking, setIsThinking] = useState(false);
   const [handsFree, setHandsFree] = useState(true);
   const [locationText, setLocationText] = useState("");
+  const [lastCoords, setLastCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState("Locating...");
   const scrollRef = useRef<ScrollView>(null);
 
@@ -241,6 +266,7 @@ function AppInner() {
       subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, timeInterval: 20000, distanceInterval: 150 },
         async (pos) => {
+          setLastCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
           const now = Date.now();
           if (now - lastGeocodeAt < 15000) return; // extra safety against back-to-back calls
           lastGeocodeAt = now;
@@ -313,6 +339,9 @@ function AppInner() {
     } else if (intent === "music") {
       reply = `Sure thing - opening Spotify for ${payload}.`;
       Linking.openURL(spotifyUrl(payload));
+    } else if (intent === "traffic") {
+      reply = "I don't have live traffic or road closure data myself - pulling up Maps for you, it'll show real current conditions.";
+      Linking.openURL(mapsTrafficUrl(lastCoords?.lat, lastCoords?.lon));
     } else if (!(await checkAndIncrementDailyQuota())) {
       reply = "We've chatted so much today we hit the daily limit - let's pick this up tomorrow.";
     } else {
