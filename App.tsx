@@ -156,28 +156,71 @@ async function reverseGeocode(lat: number, lon: number): Promise<string> {
   }
 }
 
+const WEATHER_CODES: Record<number, string> = {
+  0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcast",
+  45: "foggy", 48: "foggy", 51: "light drizzle", 53: "drizzle", 55: "heavy drizzle",
+  61: "light rain", 63: "rain", 65: "heavy rain", 66: "freezing rain", 67: "heavy freezing rain",
+  71: "light snow", 73: "snow", 75: "heavy snow", 77: "snow grains",
+  80: "light rain showers", 81: "rain showers", 82: "heavy rain showers",
+  85: "snow showers", 86: "heavy snow showers",
+  95: "thunderstorm", 96: "thunderstorm with hail", 99: "severe thunderstorm with hail",
+};
+
+async function fetchWeather(lat: number, lon: number): Promise<string> {
+  // Open-Meteo: genuinely free, no API key, no billing account - real
+  // current conditions instead of Gemini guessing from stale training data.
+  try {
+    const resp = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`
+    );
+    if (!resp.ok) return "";
+    const data = await resp.json();
+    const cw = data?.current_weather;
+    if (!cw) return "";
+    const desc = WEATHER_CODES[cw.weathercode] || "";
+    return `${Math.round(cw.temperature)}°C${desc ? `, ${desc}` : ""}, wind ${Math.round(cw.windspeed)} km/h`;
+  } catch {
+    return "";
+  }
+}
+
 async function askGemini(
   apiKey: string,
   history: ChatTurn[],
   userText: string,
-  locationText: string
+  locationText: string,
+  weatherText: string
 ): Promise<string> {
-  const contextPrefix = locationText
-    ? `[Live trip context: The driver's current approximate location is ${locationText}.]\n`
-    : "";
+  const contextParts: string[] = [];
+  if (locationText) contextParts.push(`the driver's current approximate location is ${locationText}`);
+  if (weatherText) contextParts.push(`the current real weather there is ${weatherText}`);
+  const contextPrefix = contextParts.length ? `[Live trip context: ${contextParts.join("; ")}.]\n` : "";
   const contents = history.slice(-MAX_HISTORY_TURNS).map((t) => ({
     role: t.role === "assistant" ? "model" : "user",
     parts: [{ text: t.content }],
   }));
   contents.push({ role: "user", parts: [{ text: contextPrefix + userText }] });
 
-  const body = {
-    contents,
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    generationConfig: { maxOutputTokens: 200 },
-  };
+  // Live Google Search grounding - free tier, no extra key - so she can
+  // answer news/sports/current-events questions with real current info
+  // instead of guessing from stale training data. Not every key/tier is
+  // guaranteed to support this, so the second attempt drops the tool
+  // entirely rather than failing outright if grounding itself errors.
+  const bodies = [
+    {
+      contents,
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      generationConfig: { maxOutputTokens: 200 },
+      tools: [{ google_search: {} }],
+    },
+    {
+      contents,
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      generationConfig: { maxOutputTokens: 200 },
+    },
+  ];
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (const body of bodies) {
     try {
       const resp = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
@@ -193,10 +236,7 @@ async function askGemini(
       if (text.trim()) return text.trim();
       throw new Error("Empty response");
     } catch (e) {
-      if (attempt === 1) {
-        return "Sorry, I lost signal there for a second - mind saying that again?";
-      }
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
   return "Sorry, I lost signal there for a second - mind saying that again?";
@@ -229,6 +269,7 @@ function AppInner() {
   const [isThinking, setIsThinking] = useState(false);
   const [handsFree, setHandsFree] = useState(true);
   const [locationText, setLocationText] = useState("");
+  const [weatherText, setWeatherText] = useState("");
   const [lastCoords, setLastCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState("Locating...");
   const scrollRef = useRef<ScrollView>(null);
@@ -256,6 +297,7 @@ function AppInner() {
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
     let lastGeocodeAt = 0;
+    let lastWeatherAt = 0;
 
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -268,6 +310,14 @@ function AppInner() {
         async (pos) => {
           setLastCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
           const now = Date.now();
+
+          // Weather doesn't need to refresh nearly as often as position -
+          // real conditions don't meaningfully change every 20 seconds.
+          if (now - lastWeatherAt >= 15 * 60 * 1000) {
+            lastWeatherAt = now;
+            fetchWeather(pos.coords.latitude, pos.coords.longitude).then(setWeatherText);
+          }
+
           if (now - lastGeocodeAt < 15000) return; // extra safety against back-to-back calls
           lastGeocodeAt = now;
           try {
@@ -345,7 +395,7 @@ function AppInner() {
     } else if (!(await checkAndIncrementDailyQuota())) {
       reply = "We've chatted so much today we hit the daily limit - let's pick this up tomorrow.";
     } else {
-      reply = await askGemini(apiKey, nextHistory, cleaned, locationText);
+      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText);
     }
 
     setHistory((h) => [...h, { role: "assistant", content: reply }]);
