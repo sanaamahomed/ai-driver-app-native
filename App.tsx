@@ -16,6 +16,8 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as Speech from "expo-speech";
 import * as Location from "expo-location";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { File, Paths } from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ExpoSpeechRecognitionModule,
@@ -39,12 +41,15 @@ const MAX_HISTORY_TURNS = 12;
 // below is the safety net for that: a per-device daily reply cap so even
 // an extracted key can't run up real cost through this app.
 const EMBEDDED_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
+const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY || "";
+const ELEVENLABS_VOICE_ID = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ID || "";
 const DAILY_QUOTA = 60;
+const COMPANION_NAME = "Nova";
 
-const SYSTEM_PROMPT = `You are a warm, friendly female companion riding along in the car with the
+const SYSTEM_PROMPT = `Your name is Nova. You are a warm, friendly female companion riding along in the car with the
 driver, keeping them company on the drive - easy conversation, genuine warmth, a bit of light
 humor, and real substance when they want to go deep - history, philosophy, science, whatever
-they bring up. Your tone is that of a good friend, not a romantic partner: warm and personable,
+they bring up. If asked your name, say it's Nova. Your tone is that of a good friend, not a romantic partner: warm and personable,
 never flirtatious, and never using pet names like "darling," "sweetheart," or "love." Your
 driver could be anyone, of any gender - keep the tone friendly and comfortable for anyone. The
 driver can ask you absolutely anything, on any topic - always give a real, direct, helpful
@@ -242,6 +247,65 @@ async function askGemini(
   return "Sorry, I lost signal there for a second - mind saying that again?";
 }
 
+// -----------------------------------------------------------------------
+// VOICE - ElevenLabs (natural voice, same account/voice already set up for
+// the web version) with the phone's built-in TTS as a fallback so a
+// failed/missing ElevenLabs call never leaves a reply silent.
+// -----------------------------------------------------------------------
+async function synthesizeElevenLabs(text: string): Promise<string | null> {
+  if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) return null;
+  try {
+    const resp = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
+      {
+        method: "POST",
+        headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      }
+    );
+    if (!resp.ok) return null;
+    const buffer = await resp.arrayBuffer();
+
+    // Write the mp3 bytes to a temp file - expo-audio needs a real
+    // file/URL source, not a raw ArrayBuffer.
+    const file = new File(Paths.cache, `nova-reply-${Date.now()}.mp3`);
+    const writer = file.writableStream().getWriter();
+    await writer.write(new Uint8Array(buffer));
+    await writer.close();
+    return file.uri;
+  } catch {
+    return null;
+  }
+}
+
+async function speakReply(text: string, onDone: () => void) {
+  const fileUri = await synthesizeElevenLabs(text);
+  if (fileUri) {
+    try {
+      await setAudioModeAsync({ playsInSilentMode: true });
+      const player = createAudioPlayer({ uri: fileUri });
+      const listener = player.addListener("playbackStatusUpdate", (status) => {
+        if (status.didJustFinish) {
+          listener.remove();
+          player.remove();
+          onDone();
+        }
+      });
+      player.play();
+      return;
+    } catch {
+      // fall through to the device voice below
+    }
+  }
+  // Fallback: the phone's built-in voice - more robotic, but $0 and always
+  // works even with no ElevenLabs key/quota/network issue.
+  Speech.speak(text, { pitch: 1.05, rate: 1.0, onDone });
+}
+
 async function checkAndIncrementDailyQuota(): Promise<boolean> {
   const today = new Date().toISOString().slice(0, 10);
   const raw = await AsyncStorage.getItem("daily_quota");
@@ -400,12 +464,8 @@ function AppInner() {
 
     setHistory((h) => [...h, { role: "assistant", content: reply }]);
     setIsThinking(false);
-    Speech.speak(reply, {
-      pitch: 1.05,
-      rate: 1.0,
-      onDone: () => {
-        if (handsFree) startListening();
-      },
+    speakReply(reply, () => {
+      if (handsFree) startListening();
     });
   };
 
@@ -466,7 +526,7 @@ function AppInner() {
             key={i}
             style={[styles.bubble, turn.role === "user" ? styles.bubbleUser : styles.bubbleAssistant]}
           >
-            <Text style={styles.bubbleTag}>{turn.role === "user" ? "YOU" : "HER"}</Text>
+            <Text style={styles.bubbleTag}>{turn.role === "user" ? "YOU" : COMPANION_NAME.toUpperCase()}</Text>
             <Text style={turn.role === "user" ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
               {turn.content}
             </Text>

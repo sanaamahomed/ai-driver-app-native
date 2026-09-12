@@ -54,7 +54,8 @@
             "com.google.android.googlequicksearchbox"
           ]
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "extra": {
       "eas": {
