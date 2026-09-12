@@ -264,6 +264,30 @@ async function fetchExchangeRates(): Promise<string> {
   }
 }
 
+async function fetchSpringboksResult(): Promise<string> {
+  // TheSportsDB's free public test key ("3") - genuinely free, no signup,
+  // no card - real recent Rugby Championship results, so a Springboks
+  // question gets a real score instead of a stale guess. Scoped to
+  // rugby/Springboks specifically (the most likely real sports ask here)
+  // rather than building a whole general-purpose sports API integration.
+  try {
+    const resp = await fetch(
+      "https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4986"
+    );
+    if (!resp.ok) return "";
+    const data = await resp.json();
+    const events = data?.events;
+    if (!Array.isArray(events)) return "";
+    const spBok = events.find(
+      (e: any) => e.strHomeTeam?.includes("South Africa") || e.strAwayTeam?.includes("South Africa")
+    );
+    if (!spBok || spBok.intHomeScore == null || spBok.intAwayScore == null) return "";
+    return `${spBok.strHomeTeam} ${spBok.intHomeScore} - ${spBok.intAwayScore} ${spBok.strAwayTeam} (${spBok.dateEvent}, ${spBok.strLeague})`;
+  } catch {
+    return "";
+  }
+}
+
 async function askGemini(
   apiKey: string,
   history: ChatTurn[],
@@ -271,7 +295,8 @@ async function askGemini(
   locationText: string,
   weatherText: string,
   speedKmh: number | null,
-  exchangeRateText: string
+  exchangeRateText: string,
+  springboksResultText: string
 ): Promise<string> {
   const now = new Date();
   const hour = now.getHours();
@@ -292,6 +317,7 @@ async function askGemini(
     );
   }
   if (exchangeRateText) contextParts.push(`the current real exchange rate is ${exchangeRateText}`);
+  if (springboksResultText) contextParts.push(`the Springboks' most recent real rugby result was ${springboksResultText}`);
   const contextPrefix = contextParts.length ? `[Live trip context: ${contextParts.join("; ")}.]\n` : "";
   const contents = history.slice(-MAX_HISTORY_TURNS).map((t) => ({
     role: t.role === "assistant" ? "model" : "user",
@@ -424,11 +450,13 @@ function AppInner() {
   const [weatherText, setWeatherText] = useState("");
   const [speedKmh, setSpeedKmh] = useState<number | null>(null);
   const [exchangeRateText, setExchangeRateText] = useState("");
+  const [springboksResultText, setSpringboksResultText] = useState("");
 
-  // Fetched once per session - real exchange rates don't need to update
-  // every few seconds like location does.
+  // Fetched once per session - real exchange rates/results don't need to
+  // update every few seconds like location does.
   useEffect(() => {
     fetchExchangeRates().then(setExchangeRateText);
+    fetchSpringboksResult().then(setSpringboksResultText);
   }, []);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState("Locating...");
@@ -569,7 +597,7 @@ function AppInner() {
     } else if (!(await checkAndIncrementDailyQuota())) {
       reply = "We've chatted so much today we hit the daily limit - let's pick this up tomorrow.";
     } else {
-      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText, speedKmh, exchangeRateText);
+      reply = await askGemini(apiKey, nextHistory, cleaned, locationText, weatherText, speedKmh, exchangeRateText, springboksResultText);
     }
 
     setHistory((h) => [...h, { role: "assistant", content: reply }]);
