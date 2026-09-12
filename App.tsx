@@ -219,7 +219,15 @@ async function askGemini(
   locationText: string,
   weatherText: string
 ): Promise<string> {
-  const contextParts: string[] = [];
+  const now = new Date();
+  const hour = now.getHours();
+  const timeOfDay =
+    hour < 5 ? "late night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
+  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const contextParts: string[] = [
+    `the current local time is ${timeStr} (${timeOfDay}), so speak as though you know whether it's day or night right now`,
+  ];
   if (locationText) contextParts.push(`the driver's current approximate location is ${locationText}`);
   if (weatherText) contextParts.push(`the current real weather there is ${weatherText}`);
   const contextPrefix = contextParts.length ? `[Live trip context: ${contextParts.join("; ")}.]\n` : "";
