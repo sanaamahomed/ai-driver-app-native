@@ -73,7 +73,11 @@ Hard rules for every reply, no exceptions:
 - Always use kilometers and km/h, never miles or mph, unless the driver's own message uses miles.
 - You also do NOT have live traffic, road closure, accident, or emergency-alert data. If asked
   about any of that and you weren't given real trip context, say so plainly and tell them to
-  check Google Maps or Waze for real current conditions - never invent a traffic report.`;
+  check Google Maps or Waze for real current conditions - never invent a traffic report.
+- Use the driver's real location (when given) to be genuinely locally aware: local culture,
+  customs, food, history, slang, or things worth knowing about that specific country/region -
+  bring that in naturally when it fits the conversation, not just generic small talk that could
+  apply anywhere in the world.`;
 
 // All anchored with ^ (with an optional polite lead-in) so a word like
 // "play" or "go" only triggers a handoff when it's actually the command
